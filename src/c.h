@@ -201,11 +201,11 @@ struct node {
 };
 enum {
 	F=FLOAT,
-	D=DOUBLE,
-	C=CHAR,
-	S=SHORT,
-	I=INT,
-	U=UNSIGNED,
+	D=DOUBLE,     /*double or long double*/
+	C=CHAR,       /*char or unsigned char or signed char*/
+	S=SHORT,      /*unsigned short or signed short*/
+	I=INT,        /*int or long*/
+	U=UNSIGNED,   /*unsigned int or unsigned long*/
 	P=POINTER,
 	V=VOID,
 	B=STRUCT
@@ -427,19 +427,19 @@ struct symbol {
 		struct {
 			int label;
 			Symbol equatedto;
-		} l;
+		} l; /*label*/
 		struct {
 			unsigned cfields:1;
 			unsigned vfields:1;
 			Table ftab;		/* omit */
 			Field flist;
-		} s;
+		} s; /* struct or union tags */ 
 		int value;
 		Symbol *idlist;
 		struct {
 			Value v;
 			Symbol loc;
-		} c;
+		} c;  /* const */
 		struct {
 			Coordinate pt;
 			int label;

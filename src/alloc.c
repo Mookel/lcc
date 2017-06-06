@@ -72,7 +72,7 @@ void *allocate(n, a) unsigned long n; unsigned a; {
 				}
 				ap->limit = (char *)ap + m;
 			}
-		ap->avail = (char *)((union header *)ap + 1);
+		ap->avail = (char *)((union header *)ap + 1); //在这里对free block或者刚分配的空间赋初值；
 		ap->next = NULL;
 		arena[a] = ap;
 

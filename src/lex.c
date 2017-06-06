@@ -265,7 +265,7 @@ case '[': case ']': case '{': case '}': case '(': case ')':
 			}
 			assert(cp == rcp);
 			token = (char *)rcp - 1;
-			if (*token == '0' && (*rcp == 'x' || *rcp == 'X')) {
+			if (*token == '0' && (*rcp == 'x' || *rcp == 'X')) {  //hex value
 				int d, overflow = 0;
 				while (*++rcp) {
 					if (map[*rcp]&DIGIT)
@@ -285,7 +285,7 @@ case '[': case ']': case '{': case '}': case '(': case ')':
 					error("invalid hexadecimal constant `%S'\n", token, (char *)rcp-token);
 				cp = rcp;
 				tsym = icon(n, overflow, 16);
-			} else if (*token == '0') {
+			} else if (*token == '0') {     //octal value
 				int err = 0, overflow = 0;
 				for ( ; map[*rcp]&DIGIT; rcp++) {
 					if (*rcp == '8' || *rcp == '9')
@@ -304,7 +304,7 @@ if (*rcp == '.' || *rcp == 'e' || *rcp == 'E') {
 				tsym = icon(n, overflow, 8);
 				if (err)
 					error("invalid octal constant `%S'\n", token, (char*)cp-token);
-			} else {
+			} else {                        //decimal value
 				int overflow = 0;
 				for (n = *token - '0'; map[*rcp]&DIGIT; ) {
 					int d = *rcp++ - '0';
@@ -700,6 +700,8 @@ if (*rcp == '.' || *rcp == 'e' || *rcp == 'E') {
 		}
 	}
 }
+
+//const -> symbol
 static Symbol icon(n, overflow, base)
 unsigned n; int overflow, base; {
 	if ((*cp=='u'||*cp=='U') && (cp[1]=='l'||cp[1]=='L')

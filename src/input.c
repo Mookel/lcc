@@ -5,23 +5,23 @@ static void resynch ARGS((void));
 
 static int bsize;
 static unsigned char buffer[MAXLINE+1 + BUFSIZE+1];
-int infd;		/* input file descriptor */
+int infd;		    /* input file descriptor */
 unsigned char *cp;	/* current input character */
-char *file;		/* current input file name */
+char *file;		    /* current input file name */
 char *firstfile;	/* first input file */
 unsigned char *limit;	/* points to last character + 1 */
-char *line;		/* current line */
-int lineno;		/* line number of current line */
+char *line;		    /* current line */
+int lineno;		    /* line number of current line */
 
 void inputInit() {
 	limit = cp = &buffer[MAXLINE+1];
 	bsize = -1;
 	lineno = 0;
 	file = NULL;
-	fillbuf();
-	if (cp >= limit)
+	fillbuf();       
+	if (cp >= limit)  //什么时候会cp > limit ?
 		cp = limit;
-	nextline();
+	nextline();       //为何这里需要调用nextline ？
 }
 void nextline() {
 	do {
@@ -33,7 +33,7 @@ void nextline() {
 				return;
 		} else
 			lineno++;
-		for (line = (char *)cp; *cp==' ' || *cp=='\t'; cp++)
+		for (line = (char *)cp; *cp==' ' || *cp=='\t'; cp++)  //让cp跳过空格；
 			;
 	} while (*cp == '\n' && cp == limit);
 	if (*cp == '#') {
@@ -42,10 +42,10 @@ void nextline() {
 	}
 }
 void fillbuf() {
-	if (bsize == 0)
+	if (bsize == 0)  //end of file
 		return;
 	if (cp >= limit)
-		cp = &buffer[MAXLINE+1];
+		cp = &buffer[MAXLINE+1];  //唯一有可能导致cp大于limit的原因就是上层改变了cp的值；
 	else
 		{
 			int n = limit - cp;
@@ -61,7 +61,7 @@ void fillbuf() {
 		error("read error\n");
 		exit(1);
 	}
-	limit = &buffer[MAXLINE+1+bsize];
+	limit = &buffer[MAXLINE+1+bsize];  //调整limit的位置，并将最后一个位置设置为换行；
 	*limit = '\n';
 }
 /* inputstring - arrange to read str as next input */

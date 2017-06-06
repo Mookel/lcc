@@ -15,6 +15,29 @@ Tree (*optree[]) ARGS((int, Tree, Tree)) = {
 #define yy(a,b,c,d,e,f,g) e,
 #include "token.h"
 };
+
+//
+// P185
+// 1. lcc generates code to widen short arguments and character arguments
+//    to integers when they are passed, and code to narrow them upon entry
+//    for new-style functions.
+//
+//Notes about wants_argb:
+//
+// >wants_argb = 0
+// *parameters: if wants_argb is <<zero>>, the front end completely implements value 
+//  transmission for structures. It copies the actual argument to a local 
+//  temporary in the caller ,and passes the address of that temporary.
+// *return value: the front end arranges to pass this address as a hidden first
+//  argument, and it changes the CALL+B to CALL+V;in this case, the back end 
+//  never sees CALL+B nodes.
+//
+// >wants_argb = 1
+// *parameters: ARG+B nodes is provided so that back ends can use target-specific
+//  calling sequences.
+// *return value: CALL+B node's right operand is the address of a temprary in
+//  the caller to which the return value is assigned.
+//
 Tree call(f, fty, src) Tree f; Type fty; Coordinate src; {
 	int n = 0;
 	Tree args = NULL, r = NULL;
@@ -97,6 +120,18 @@ Tree call(f, fty, src) Tree f; Type fty; Coordinate src; {
 		apply(events.calls, &src, &f);
 	return calltree(f, rty, args, t3);
 }
+
+//
+// P184
+// 1. A CALL's left operand is a RIGHT tree that evaluates the 
+//    arguments(ARG tree) and the function itself.
+//
+// 2. In general, there's one RIGHT tree for each argument that
+//    includes a call.
+//
+// 3. The actual arguments are represented by ARG trees, rightmost
+//    argument first.ARG trees can have two operands.
+//
 Tree calltree(f, ty, args, t3)
 Tree f, args; Type ty; Symbol t3; {
 	Tree p;
@@ -120,6 +155,7 @@ Tree f, args; Type ty; Symbol t3; {
 	}
 	return p;
 }
+
 int iscallb(e) Tree e; {
 	return e->op == RIGHT && e->kids[0] && e->kids[1]
 		&& e->kids[0]->op == CALL+B
@@ -196,6 +232,7 @@ static int isnullptr(e) Tree e; {
 	    || (isvoidptr(e->type) && e->op == CNST+P
 	        && e->u.v.p == NULL);
 }
+
 Tree eqtree(op, l, r) int op; Tree l, r; {
 	Type xty = l->type, yty = r->type;
 
@@ -304,6 +341,24 @@ Tree asgntree(op, l, r) int op; Tree l, r; {
 	return tree(op + (isunsigned(ty) ? I : ttob(ty)),
 		ty, l, r);
 }
+
+//P200
+// e ? l : r
+//
+//                    COND
+//                  /  t1  \
+//                 /        \
+//                e         RIGHT
+//                         /     \
+//                        /       \
+//                      ASGN      ASGN
+//                      /  \      /   \
+//                     /    \    /     \
+//                  ADDRL+P  l ADDRL+P  r
+//                   (t1)        (t1)
+//
+// 
+//
 Tree condtree(e, l, r) Tree e, l, r; {
 	Symbol t1;
 	Type ty, xty = l->type, yty = r->type;
@@ -311,7 +366,7 @@ Tree condtree(e, l, r) Tree e, l, r; {
 
 	if (isarith(xty) && isarith(yty))
 		ty = binary(xty, yty);
-	else if (eqtype(xty, yty, 1))
+	else if (eqtype(xty, yty, 1)) //structs and void
 		ty = unqual(xty);
 	else if (isptr(xty)   && isnullptr(r))
 		ty = xty;
@@ -327,7 +382,7 @@ Tree condtree(e, l, r) Tree e, l, r; {
 		typeerror(COND, l, r);
 		return consttree(0, inttype);
 	}
-	if (isptr(ty)) {
+	if (isptr(ty)) {//add qual type
 		ty = unqual(unqual(ty)->type);
 		if (isptr(xty) && isconst(unqual(xty)->type)
 		||  isptr(yty) && isconst(unqual(yty)->type))
@@ -350,10 +405,12 @@ Tree condtree(e, l, r) Tree e, l, r; {
 		l = asgn(t1, l);
 		r = asgn(t1, r);
 	} else
-		t1 = NULL;
+		t1 = NULL;  //ty == voidtype
+	
 	p = tree(COND, ty, cond(e),
 		tree(RIGHT, ty, root(l), root(r)));
 	p->u.sym = t1;
+
 	return p;
 }
 /* addrof - address of p */

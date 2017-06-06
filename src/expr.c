@@ -19,6 +19,8 @@ static Tree unary ARGS((void));
 static Tree primary ARGS((void));
 static Type super ARGS((Type ty));
 
+//  expression:
+//			  assignment-expression{, assignment-expression }
 Tree expr(tok) int tok; {
 	static char stop[] = { IF, ID, '}', 0 };
 	Tree p = expr1(0);
@@ -36,9 +38,13 @@ Tree expr(tok) int tok; {
 Tree expr0(tok) int tok; {
 	return root(expr(tok));
 }
+
+// assignment-expression:
+//       condition-expression
+//       unary-expression assign-operator assignment-expression
 Tree expr1(tok) int tok; {
 	static char stop[] = { IF, ID, 0 };
-	Tree p = expr2();
+	Tree p = expr2(); //expr2 parsing both condition-expression and unary-expression.
 
 	if (t == '='
 	|| (prec[t] >=  6 && prec[t] <=  8)
@@ -60,6 +66,9 @@ Tree expr1(tok) int tok; {
 Tree incr(op, v, e) int op; Tree v, e; {
 	return asgntree(ASGN, v, (*optree[op])(oper[op], v, e));
 }
+
+// condition-expression:
+//        binary-expression [ ? expression : conditional-expression ]
 static Tree expr2() {
 	Tree p = expr3(4);
 
@@ -92,15 +101,27 @@ static Tree expr2() {
 	}
 	return p;
 }
+
+// p160
+// Conditional expressions are also used to convert a 
+// relational, which is represented only by flow of control
+// ,to a value.
+//
 Tree value(p) Tree p; {
 	int op = generic(rightkid(p)->op);
 
 	if (op==AND || op==OR || op==NOT || op==EQ || op==NE
-	||  op== LE || op==LT || op== GE || op==GT)
+	||  op==LE  || op==LT || op== GE || op==GT)
 		p = condtree(p, consttree(1, inttype),
 			consttree(0, inttype));
 	return p;
 }
+
+// binary-expression:
+//        unary-expression { binary-operator unary-expression }
+//
+// binary-operator:
+//        one of || && '|' ^ & == != < > <= >= << >> + - * / %
 static Tree expr3(k) int k; {
 	int k1;
 	Tree p = unary();
@@ -123,6 +144,29 @@ static Tree expr3(k) int k; {
 		}
 	return p;
 }
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//unary-expression:
+//		postfix-expression
+//		unary-operator unary-expression
+//		'(' type-name ')' unary-expression
+//		sizeof unary-expression
+//		sizeof '(' type-name ')'
+//
+//unary-operator:
+//		++ -- & * + - ~ !
+//
+//postfix-expression:
+//		primary-expression { postfix-operator }
+//
+//postfix-operator:
+//		'[' expression ']'
+//		'(' [ assignment-expression { , assignement-expression}] ')'
+//		.identifier
+//		->identifier
+//		++
+//		--
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 static Tree unary() {
 	Tree p;
 
@@ -136,16 +180,16 @@ static Tree unary() {
 						  		p = nullcheck(p);
 						  	p = rvalue(p);
 						  } break;
-	case '&':    t = gettok(); p = unary(); if (isarray(p->type) || isfunc(p->type))
+	case '&':    t = gettok(); p = unary(); 
+						  if (isarray(p->type) || isfunc(p->type))  //array and func converted to (PTR to (ARRAY/FUNC))
 						  	p = retype(p, ptr(p->type));
 						  else
 						  	p = lvalue(p);
 						  if (isaddrop(p->op) && p->u.sym->sclass == REGISTER)
 						  	error("invalid operand of unary &; `%s' is declared register\n", p->u.sym->name);
-
 						  else if (isaddrop(p->op))
 						  	p->u.sym->addressed = 1;
- break;
+						  break;
 	case '+':    t = gettok(); p = unary(); p = pointer(p);
 						  if (isarith(p->type))
 						  	p = cast(p, promote(p->type));
@@ -182,11 +226,11 @@ static Tree unary() {
 				     	if (istypename(t, tsym)) {
 				     		ty = typename();
 				     		expect(')');
-				     	} else {
+				     	} else { // ??? 
 				     		p = postfix(expr(')'));
 				     		ty = p->type;
 				     	}
-				     } else {
+				     } else {  // sizeof unary-expression
 				     	p = unary();
 				     	ty = p->type;
 				     }
@@ -202,7 +246,7 @@ static Tree unary() {
 			Type ty, ty1 = typename(), pty;
 			expect(')');
 			ty = unqual(ty1);
-			if (isenum(ty)) {
+			if (isenum(ty)) {   // enum's internal type is inttype.
 				Type ty2 = ty->type;
 				if (isconst(ty1))
 					ty2 = qual(CONST, ty2);
@@ -211,7 +255,7 @@ static Tree unary() {
 				ty1 = ty2;
 				ty = ty->type;
 			}
-			p = pointer(unary());
+			p = pointer(unary()); //pointer just change array and function type.
 			pty = p->type;
 			if (isenum(pty))
 				pty = pty->type;
@@ -244,7 +288,7 @@ static Tree unary() {
 static Tree postfix(p) Tree p; {
 	for (;;)
 		switch (t) {
-		case INCR:  p = tree(RIGHT, p->type,
+		case INCR:  p = tree(RIGHT, p->type,  //two RIGHT tree here? why?
 			    	tree(RIGHT, p->type,
 			    		p,
 			    		incr(t, p, consttree(1, inttype))),
@@ -286,7 +330,7 @@ static Tree postfix(p) Tree p; {
 			    	t = gettok();
 			    	p = call(p, ty, pt);
 			    } break;
-		case '.':   t = gettok();
+		case '.':   t = gettok(); 
 			    if (t == ID) {
 			    	if (isstruct(p->type)) {
 			    		Tree q = addrof(p);
@@ -302,7 +346,7 @@ static Tree postfix(p) Tree p; {
 			    	t = gettok();
 			    } else
 			    	error("field name expected\n"); break;
-		case DEREF: t = gettok();
+		case DEREF: t = gettok(); //pointer to field.
 			    p = pointer(p);
 			    if (t == ID) {
 			    	if (isptr(p->type) && isstruct(p->type->type)) {
@@ -319,17 +363,27 @@ static Tree postfix(p) Tree p; {
 			return p;
 		}
 }
+
+//
+// primary-expression :
+//		identifier
+//		constant
+//		string-literal
+//		'(' expression ')'
+//
 static Tree primary() {
 	Tree p;
 
 	assert(t != '(');
 	switch (t) {
-	case ICON:
+	case ICON: // in lcc, const is also a symbol.
 	case FCON: p = tree(CNST + ttob(tsym->type), tsym->type, NULL, NULL);
-		   p->u.v = tsym->u.c.v;
+		   p->u.v = tsym->u.c.v;  //ttob return the backend type based on front-end type.
  break;
 	case SCON: tsym->u.c.v.p = stringn(tsym->u.c.v.p, tsym->type->size);
-		   tsym = constant(tsym->type, tsym->u.c.v); 
+		   tsym = constant(tsym->type, tsym->u.c.v);
+		   // string constants are abbreviations for read-only variables initialized to the
+		   // value of the string constant.
 		   if (tsym->u.c.loc == NULL)
 		   	tsym->u.c.loc = genident(STATIC, tsym->type, GLOBAL);
 		   p = idtree(tsym->u.c.loc); break;
@@ -394,17 +448,20 @@ Tree idtree(p) Symbol p; {
 	p->ref += refinc;
 	if (p->scope  == GLOBAL
 	||  p->sclass == STATIC || p->sclass == EXTERN)
-		op = ADDRG+P;
+		op = ADDRG+P; //address of a global
 	else if (p->scope == PARAM) {
-		op = ADDRF+P;
-		if (isstruct(p->type) && !IR->wants_argb)
+		op = ADDRF+P; //address of a parameter
+		if (isstruct(p->type) && !IR->wants_argb)  
+		  //if wants_argb is zero, the front end implements struct arguments by copying them
+		  //at a call and passing pointers to the copies.Thus, a reference to a structure 
+		  //parameter needs another indirection to access the structure itself.
 			{
-				e = tree(op, ptr(ptr(p->type)), NULL, NULL);
+				e = tree(op, ptr(ptr(p->type)), NULL, NULL);//why ptr(ptr)???
 				e->u.sym = p;
 				return rvalue(rvalue(e));
 			}
 	} else
-		op = ADDRL+P;
+		op = ADDRL+P; //address of a local
 	if (isarray(ty) || isfunc(ty)) {
 		e = tree(op, p->type, NULL, NULL);
 		e->u.sym = p;
@@ -416,15 +473,24 @@ Tree idtree(p) Symbol p; {
 	return e;
 }
 
+//
+//(1) rvalue can be called with any tree that represents a pointer 
+//    value. while lvalue must be called with only trees that represent 
+//    an rvalue -- the contents of an addressable location.
+//
+//(2) The INDIR tree added by rvalue also signals that a tree is a 
+//    valid lvalue, and the address is exposed by tearing off the INDIR.
+//
 Tree rvalue(p) Tree p; {
 	Type ty = deref(p->type);
 
 	ty = unqual(ty);
 	if (YYnull && !isaddrop(p->op))		/* omit */
-		p = nullcheck(p);		/* omit */
+		p = nullcheck(p);		        /* omit */
 	return tree(INDIR + (isunsigned(ty) ? I : ttob(ty)),
 		ty, p, NULL);
 }
+
 Tree lvalue(p) Tree p; {
 	if (generic(p->op) != INDIR) {
 		error("lvalue required\n");
@@ -462,6 +528,9 @@ int hascall(p) Tree p; {
 		return 1;
 	return hascall(p->kids[0]) || hascall(p->kids[1]);
 }
+
+// 1.assume long double and double are same size.
+// 2.assume int and long are same size.(unsigned / signed)
 Type binary(xty, yty) Type xty, yty; {
 	if (isdouble(xty) || isdouble(yty))
 		return doubletype;
@@ -471,6 +540,13 @@ Type binary(xty, yty) Type xty, yty; {
 		return unsignedtype;
 	return inttype;
 }
+
+//
+// array and function types decay into pointers when
+// used in expressions:
+// (ARRARY T) -> (POINTER T)
+// (FUNCTION T) -> (POINTER (FUNCTION T))
+//
 Tree pointer(p) Tree p; {
 	if (isarray(p->type))
 		/* assert(p->op != RIGHT || p->u.sym == NULL), */
@@ -479,6 +555,12 @@ Tree pointer(p) Tree p; {
 		p = retype(p, ptr(p->type));
 	return p;
 }
+
+// P174.
+// cond is inverse of value:
+// it takes a tree that might represent a value and
+// turns it into a tree for a conditional by adding
+// a comparison with zero.
 Tree cond(p) Tree p; {
 	int op = generic(rightkid(p)->op);
 
@@ -490,6 +572,25 @@ Tree cond(p) Tree p; {
 	p = cast(p, promote(p->type));
 	return (*optree[NEQ])(NE, p, consttree(0, inttype));
 }
+
+// p175
+//           C         C
+//           ^         ^
+//           |         |
+//           |         |
+//           v         v
+//  D <----> I <-----> U <-----> P
+//  ^        ^         ^ 
+//  |        |         |
+//  |        |         |
+//  v        v         v
+//  F        S         S
+//
+// 1. p is coverted to its supertyping, which is 
+// D, I or U. Then it's converted to the supertype
+// of the destination type, if necessary.Finally,
+// it's converted to the destination type.
+//
 Tree cast(p, type) Tree p; Type type; {
 	Type pty, ty = unqual(type);
 
@@ -499,6 +600,7 @@ Tree cast(p, type) Tree p; Type type; {
 	pty = unqual(p->type);
 	if (pty == ty)
 		return retype(p, type);
+	//1. first p is converted to its supertyping.
 	switch (pty->op) {
 	case CHAR:    p = simplify(CVC, super(pty), p, NULL); break;
 	case SHORT:   p = simplify(CVS, super(pty), p, NULL); break;
@@ -519,7 +621,8 @@ Tree cast(p, type) Tree p; Type type; {
 		break;
 	default: assert(0);
 	}
-	{
+	//2. then it's converted to supertype of dsttype
+	{   
 		Type sty = super(ty);
 		pty = p->type;
 		if (pty != sty)
@@ -554,6 +657,7 @@ Tree cast(p, type) Tree p; Type type; {
 					p = simplify(CVU, sty, p, NULL);
 			else assert(0);
 	}
+	//3. last converted to dst type.
 	if (ty == signedchar || ty == chartype || ty == shorttype)
 		p = simplify(CVI, type, p, NULL);
 	else if (isptr(ty)
@@ -565,6 +669,7 @@ Tree cast(p, type) Tree p; Type type; {
 		p = retype(p, type);
 	return p;
 }
+
 static Type super(ty) Type ty; {
 	if (ty == signedchar || ty == chartype || isenum(ty)
 	||  ty == shorttype  || ty == inttype  || ty == longtype)
@@ -578,21 +683,28 @@ static Type super(ty) Type ty; {
 	assert(0);
 	return NULL;
 }
+
+//
+// q->type is the type of the field.
+// q->offset is the byte offset to the field.
+//
 Tree field(p, name) Tree p; char *name; {
 	Field q;
 	Type ty1, ty = p->type;
 
-	if (isptr(ty))
+	if (isptr(ty))  //if p's type is a pointer then get its ref type.
 		ty = deref(ty);
-	ty1 = ty;
+	ty1 = ty;       //ty1 is the original type and ty becomes unqual type. 
 	ty = unqual(ty);
-	if ((q = fieldref(name, ty)) != NULL) {
+	if ((q = fieldref(name, ty)) != NULL) { //filedref return the field of ty.
 		if (isarray(q->type)) {
 			ty = q->type->type;
+			//add necessary qualifier according to base struct type.
 			if (isconst(ty1) && !isconst(ty))
 				ty = qual(CONST, ty);
 			if (isvolatile(ty1) && !isvolatile(ty))
 				ty = qual(VOLATILE, ty);
+
 			ty = array(ty, q->type->size/ty->size, q->type->align);
 		} else {
 			ty = q->type;
@@ -605,8 +717,15 @@ Tree field(p, name) Tree p; char *name; {
 		if (YYcheck && !isaddrop(p->op) && q->offset > 0)	/* omit */
 			p = nullcall(ty, YYcheck, p, consttree(q->offset, inttype));	/* omit */
 		else					/* omit */
-		p = simplify(ADD+P, ty, p, consttree(q->offset, inttype));
+			p = simplify(ADD+P, ty, p, consttree(q->offset, inttype));
 
+		// 
+		// P183
+		// a nonzero q->lsb gives the position plus one of
+		// a bit field's least significant bit, and servers
+		// to identify a field as a bit field.
+		// Bit fields are referenced via FIELD trees, and are not lvalues.
+		//
 		if (q->lsb) {
 			p = tree(FIELD, ty->type, rvalue(p), NULL);
 			p->u.field = q;
@@ -619,6 +738,7 @@ Tree field(p, name) Tree p; char *name; {
 	}
 	return p;
 }
+
 /* funcname - return name of function f or a function' */
 char *funcname(f) Tree f; {
 	if (isaddrop(f->op))

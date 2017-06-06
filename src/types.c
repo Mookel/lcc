@@ -269,6 +269,7 @@ int eqtype(ty1, ty2, ret) Type ty1, ty2; int ret; {
 	}
 	assert(0); return 0;
 }
+
 Type promote(ty) Type ty; {
 	ty = unqual(ty);
 	if (isunsigned(ty) || ty == longtype)
@@ -277,6 +278,7 @@ Type promote(ty) Type ty; {
 		return inttype;
 	return ty;
 }
+
 Type compose(ty1, ty2) Type ty1, ty2; {
 	if (ty1 == ty2)
 		return ty1;
